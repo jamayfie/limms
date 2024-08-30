@@ -1,0 +1,274 @@
+#' Statistical analysis by linear models and Bayesian shrinkage of variance
+#'
+#' This function is a simplified interface to the limma package.
+#' All credit for the methods should go to the limma package.
+#'
+#' @param	x	An R object containing log transformed values for a series of
+#' experiments with samples arranged in columns.  Input can be either:
+#' 1) a matrix of log2 transformed intensities only, with row names as labels; or
+#' 2) a data.table object.  If a data.table, use the peaknames and intensities
+#' arguments to assign the peak names and choose the intensity columns.
+#' If a data.table, columns with extra data (ie mass and retention times)
+#' that are not specified as intensity values can be passed to the output
+#' using the limma_out argument.
+#' @param	peaknames	If a data.table, the column name or number containing peak 
+#' names.  The default is to assume the first column are the peak names.
+#' @param	intensities	If a data.table, column numbers containing peak intensities.
+#' The default is NULL: a number will be assigned.
+#' @param	des	An R object containing a design matrix.
+#' @param	cont An R object containing a contrast matrix.  If no contrast matrix
+#' is provided, an all-by-all analysis based on the design matrix is used.
+#' This is desirable in some cases, such as paired samples, and contrasts of 
+#' interest can be selected using the coef argument; however, in most cases
+#' it is prudent to test only relevant contrasts.
+#' WARNING: do not name your contrast matrix "contrast.matrix".
+#' @param	block	For complex designs, the limma duplicateCorrelation function
+#' can be accessed by input of a vector or factor.  Leave blank otherwise.
+#' @param	limma_out If not specified, the default output is a limma topTable 
+#' appended to the input. The topTable arguments coef, p.value and lfc are 
+#' available to specify the desired output.
+#' Note: if a coef argument is not entered, the output adjusted p value is
+#' and F-score (output from topTableF) if there is more than one contrast in
+#' the design matrix.
+#' If only the limma output is desired, setting limma_out=TRUE will return
+#' the limma output in MArrayLM format.
+#' @param	coef The contrast to use to generate a topTable object.
+#' The default is to assume all contrasts, which generates an F-score
+#' when multiple contrasts are in the contrast matrix.
+#' Note: if the contrast matrix contains an intercept term, be cautious 
+#' using the default.
+#' @param	p.value A p value cutoff for the topTable.
+#' The default is to include all peaks.
+#' @param	lfc A log-fold-change cutoff. The default is to use all peaks.
+#' Note: applying a log-fold-change cutoff to an all-by-all contrast (F-score)
+#' will apply the cutoff to all contrasts.
+#' @param number.hits The number of hits to return, ranked by adjusted p value.
+#' The default is to return all peaks.
+#' 
+#' @return	A data.table of the input data with a limma topTable
+#' appended to the input table, or a limma object of class MArrayLM
+#' (see MArrayLM-class), from the limma function eBayes.  
+#' The default appends the log-fold-change (logFC), Average Expression 
+#' (AveExpr), t statistic (t), unadjusted p value (P.Value),
+#' Benjamini-Hochberg adjusted P value (adj.P.Val), and log odds (B).
+#' If a single contrast is requested, one logFC is added, but for an F-score
+#' separate fold-change columns are added for each contrast.
+#' Warning: if the peaklist input already has statistics or p value columns,
+#' the output will contain both the previous and limms columns.
+#' @details	The limma package could be accessed directly:
+#' this function merely provides a streamlined interface to limma by calling the
+#' functions lmFit, contrasts.fit and eBayes.
+#'
+#' Three objects must be created and provided to limmaTest, in brief:
+#' \itemize{
+#' \item{x}{	The data to be analyzed for differential levels is contained
+#' within x.}
+#' \item{des}{	A design matrix is provided through des, and should contain a
+#' row for each sample and a column for each unique sample class.
+#' The matrix itself should contain a 0 or 1 to indicate which sample (row) 
+#' belongs to which class (column).}
+#' \item{cont}{	A contrast matrix is provided though cont and should contain
+#' the contrasts to be tested.  Only specified contrasts are made.
+#' This object should contain levels (the classes) as the row names and the
+#' contrasts of interest as the column names.
+#' The matrix should contain numeric indicators of which levels should be tested
+#' for each specified contrast.}
+#' }
+#'
+#' The limma manual and vignette discuss the necessary objects and how to
+#' build them for a variety of different experimental designs, including
+#' the treatment of circuit analyses and time courses.
+#' @details	Useful output is by objects of the limma class topTable.
+#' @note	Zero values are not tolerated and must be removed prior to analysis
+#' using imputeZerosUnifMin.
+#' @family limms
+#' @import limma
+#' @import data.table
+#' @export
+#' @seealso \code{\link{lmFit}}
+#' \code{\link{contrasts.fit}}
+#' \code{\link{eBayes}}
+#' \code{\link{MArrayLM-class}}
+#' \code{\link{topTable}}
+#' \code{\link{topTableF}}
+#' @examples
+#' 
+#' require(data.table)
+#' require(limma)
+#'  
+#' # Choose columns with desired data, here from
+#' # An xcms diffreport object is included as limms package data,
+#' # the dataset CBS.xcms_diffreport.
+#' 
+#' names(CBS.xcms_diffreport[,24:55])
+#' # Build a sample list with class information
+#' desMetB6 <- cbind(names(CBS.xcms_diffreport[,24:55]), c(rep("CBS",4), rep("CBS",4),
+#'   rep("CBS",4), rep("CBS",4), rep("CBS",4), rep("CBS",4), rep("G307S",4),
+#'   rep("G307S",4)), c(rep("Yes",4), rep("Yes",4), rep("Yes",4), rep("Yes",4),
+#'   rep("No",4), rep("No",4), rep("Yes",4), rep("Yes",4)),  c(rep("High",4),
+#'   rep("High",4), rep("Low",4), rep("Low",4), rep("High",4), rep("Low",4),
+#'   rep("High",4), rep("Low",4)), c(rep(2,4), rep(1,4), rep(2,4), rep(1,4),
+#'   rep(1,4), rep(1,4), rep(2,4), rep(2,4)))
+#' desMetB6 <- data.frame(desMetB6)
+#' names(desMetB6) <- c("Run", "Strain", "Met", "B6", "Rep")
+#' # Check the sample list
+#' desMetB6
+#'
+#' # Build the design matrix
+#' f <- paste(desMetB6$Strain, desMetB6$Met, desMetB6$B6, desMetB6$Rep, sep="")
+#' f <-factor(f)
+#' desCu <- model.matrix(~0+f)
+#' colnames(desCu) <- levels(f)
+#' # Check the design matrix.  This matrix is used as "des" by limmaTest.
+#' desCu
+#'
+#' # Now build the contast matrix. Only 4 of the possible contrasts are
+#' # specified as interesting
+#' contMatrix <- makeContrasts(MA_B6="(CBSYesLow1+CBSYesLow2)-(CBSYesHigh1+CBSYesHigh2)",
+#'   Strain_w_B6="G307SYesHigh2-CBSYesHigh2",
+#'   Strain_by_B6="(G307SYesLow2-G307SYesHigh2)-(CBSYesLow2-CBSYesHigh2)",
+#'   CBS_Met="CBSNoHigh1-CBSYesHigh1", levels=desCu)
+#' # Check the contrast matrix.  This is the object used as cont in limmaTest().
+#' contMatrix
+#'
+#' # The data object must have zeros removed, be log transformed and normalized.
+#' # For the example CBS dataset, zeros must first be imputed by
+#' all.i_l <- imputeZerosUnifMin(CBS.xcms_diffreport, intensities=24:55, seed=478)
+#'
+#' # Normalization by full quantiles
+#' all.fq <- runNorm(all.i_l, intensities=70:101)
+#'
+#' # All objects are ready for limmaTest()
+#' # Choose the peak names and normalized intensity columns from a data.table like all.fq,
+#' # and all other columns will be passed to the output,
+#' # or enter a matrix of intensities only and row names will be passed to the output.
+#' #' # Results are appended to the input as a limma topTable.
+#' # The default behavior is to return the p value for all contrastas in the adj.P.Val column.
+#' # This is an F-score if more than one contrast is present in the contrast matrix.
+#' tT.F <- limmaTest(x=all.fq, peaknames="name", intensities=102:133, des=desCu, cont=contMatrix)
+#'
+#' # Using the coef argument allows selection of a specific contrast.
+#' # For example, significant hits in the first contrast MA_B6 are seen with
+#' tt1 <- limmaTest(x=all.fq, peaknames="name", intensities=102:133, des=desCu, cont=contMatrix,
+#'  coef=1, p.value=0.01, lfc=2)
+#'
+#' # The limma output only can be obtained by using the limma_out argument
+#' DECu <- limmaTest(x=all.fq, peaknames="name", intensities=102:133, des=desCu, 
+#' cont=contMatrix, limma_out=TRUE)
+#'
+#' # A summary via decideTests
+#' results <- decideTests(DECu)
+#' summary(results)
+#'
+#' # There are lots of visualization options, but the
+#' # built-in limma functions for descriptive displays and QC are available
+#' results2 <- (results)[,1:2]
+#' vennDiagram(results2)
+#'
+#' # QQ-plot of limma t-statistics
+#' par(mfrow=c(3,2))
+#' for(i in 1:4)
+#'  {
+#'    qqt(DECu$t[,i],df=DECu$df.residual+DECu$df.prior,
+#'    main=colnames(desCu)[i])
+#'    abline(0,1)
+#'  }
+#' par(mfrow=c(1,1))
+#' mtext("QQ-plots of limma t-statistics", line=3)
+#'
+# # Volcano plots
+#' par(mfrow=c(3,2))
+#' for(i in 1:4)
+#'  volcanoplot(DECu, coef=i, main=colnames(desCu)[i])
+#' par(mfrow=c(1,1))
+#' mtext("Volcano plots for limma", line=3)
+
+limmaTest <-
+  function(x,
+           peaknames = 1,
+           intensities = NULL,
+           des = NULL,
+           cont = NULL,
+           block = NULL,
+           limma_out = NULL,
+           coef = NULL,
+           p.value = 1,
+           lfc = 0, 
+           number.hits = NULL)
+  {
+    rn <- . <- NULL
+    if (is.null(number.hits)) {number.hits <- dim(x)[1]}
+    if (is.data.table(x) == TRUE) {
+      print(
+      "For data.table input, assign columns using the 'peaknames' and 'intensities' arguments"
+      )
+      z <- copy(x)
+      keycol <- names(z[, ..peaknames])
+      x.int <-  names(z[, ..intensities])
+      y <-
+        as.matrix(z[, .SD, .SDcols = c(keycol, x.int)], rownames = peaknames)
+    }
+    
+    else {
+      if (is.matrix(x) == FALSE) {
+        print("Input is not a data.table or matrix.")
+      }
+      else if (is.null(row.names(x))) {
+        print("Input matrix does not have row names.")
+      }
+      else {
+        peaknames <- row.names(x)
+        y <- x
+      }
+    }
+    
+    if(is.null(block)) {
+      res <- limma::lmFit(y, design = des)
+      if(is.null(cont)) {
+        res2 <- eBayes(res)
+      }
+      else {
+        res2 <- contrasts.fit(res, cont)
+        res2 <- eBayes(res2)
+      }
+    }
+    else {
+      corfit <- limma::duplicateCorrelation(y, design = des, block=block)
+      res <- limma::lmFit(y, design = des, block = block, correlation = corfit$consensus)
+      if(is.null(cont)) {
+        res2 <- eBayes(res)
+      }
+      else {
+        res2 <- contrasts.fit(res, cont)
+        res2 <- eBayes(res2)
+      }      
+    }
+    
+    print(summary(limma::decideTests(res2)))
+    
+    if (is.null(limma_out)) {
+      if (is.data.table(x) == FALSE) {
+        z <- data.table(y, keep.rownames=TRUE)
+        keycol <- names(z)[1]
+      }
+      setkeyv(z, keycol)
+      tT <-
+        data.table(
+          limma::topTable(
+            res2,
+            coef = coef,
+            number = number.hits,
+            p.value = p.value,
+            lfc = lfc
+          ),
+          keep.rownames = TRUE
+        )
+      data.table::setkey(tT, rn)
+      z[tT, ]
+    }
+    
+    else { res2 }
+  }
+
+    
+    

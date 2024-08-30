@@ -1,0 +1,31 @@
+Package: limms
+Type: Package
+Title: Linear models and Bayesian shrinkage for mass spectrometry
+Version: 0.99.0
+Date: 2024-08-29
+Authors@R: c(person("Jacob", "Mayfield", email = "jamayfie@me.com", role = c("aut", "cre"),
+  comment = c(ORCID = "0000-0002-5762-6755")), person("Sandrine", "Dudoit", role = c("aut")))
+Maintainer: Jacob Mayfield <jamayfie@me.com>
+Description: limms is a limma implementation for mass spectrometry with
+    functions for data treatment to feed mass spectrometry data into limma.
+biocViews: Bayesian, BiomedicalInformatics, Cheminformatics, DifferentialExpression, MassSpectrometry, Metabolomics, MultipleComparison, Normalization, Preprocessing, QualityControl, SystemsBiology
+Depends:
+    R (>= 3.1)
+Imports:
+    limma,
+    aroma.light,
+    data.table,
+    ggplot2,
+    gdata,
+    forcats,
+    cowplot,
+    reshape2
+Encoding: UTF-8
+VignetteBuilder: knitr
+Suggests: 
+    knitr,
+    rmarkdown
+License: GPL-3
+Language: en-US
+LazyData: true
+RoxygenNote: 7.3.2
